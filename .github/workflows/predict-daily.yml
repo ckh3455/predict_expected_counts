@@ -71,11 +71,9 @@ except Exception as e:
 PY
 
       - name: Predict & write
-        env:
-          PYTHONUNBUFFERED: "1"
-          # 필요시 대상 월을 시크릿/변수로 넘기고, 스크립트에서 os.getenv로 읽도록 구현 가능
-          # TARGET_YEAR: "2024"
-          # TARGET_MONTH: "10"
-        run: |
-          # predict_expected_counts.py 가 리포 루트에 있다고 가정
-          python predict_expected_counts.py
+  env:
+    PYTHONUNBUFFERED: "1"
+    SHEET_ID: ${{ secrets.SHEET_ID }}
+    GOOGLE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}   # ← 멀티라인 JSON 그대로
+  run: |
+    python predict_expected_counts.py
