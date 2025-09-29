@@ -2,8 +2,8 @@ name: predict-daily
 
 on:
   schedule:
-    - cron: "0 23 * * *"      # 매일 08:00 KST (UTC 23:00)
-    # - cron: "30 23 * * *"   # (선택) 매일 08:30 KST 백업 실행
+    - cron: "0 23 * * *"     # 매일 08:00 KST (UTC 23:00)
+    # - cron: "30 23 * * *"  # (선택) 매일 08:30 KST 추가 실행
   workflow_dispatch:
 
 jobs:
@@ -12,9 +12,14 @@ jobs:
     env:
       TZ: Asia/Seoul
       SHEET_ID: ${{ secrets.SHEET_ID }}
-      SA_PATH:  ${{ github.workspace }}/sa.json
+      # ▶ 파이썬 코드가 ENV에서 직접 읽어 쓰도록 제공 (GOOGLE_SA_JSON 사용 시)
+      GOOGLE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+      # ▶ 파일 경로(파이썬 코드가 파일을 읽는 경우 대비)
+      SA_PATH: ${{ github.workspace }}/sa.json
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,21 +31,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install gspread google-auth pandas numpy holidays
 
-     - name: Write service account key (plain secret → file)
-  shell: bash
-  run: |
-    # 멀티라인 시크릿을 내용 그대로 파일로 저장 (변수 치환/확장 방지용 'EOF')
-    cat > "${SA_PATH}" << 'EOF'
+      # ▼ 시크릿(JSON) → 파일로도 복원 (파일 방식 사용하는 코드 대비)
+      - name: Write service account key (plain secret → file)
+        shell: bash
+        run: |
+          # 멀티라인 시크릿을 내용 그대로 저장 (변수 확장/이스케이프 방지용 'EOF')
+          cat > "${SA_PATH}" << 'EOF'
 ${{ secrets.GDRIVE_SA_JSON }}
 EOF
 
-    # ✅ JSON 유효성 검사 (내용은 출력하지 않음)
-    python - <<'PY'
-import json, os
-p = os.environ.get("SA_PATH","sa.json")
-json.load(open(p,"r"))
-print("✅ Service account JSON valid:", p, "size:", os.path.getsize(p), "bytes")
+      # ▼ JSON 유효성 검사 (내용 출력하지 않음)
+      - name: Validate SA JSON
+        shell: bash
+        run: |
+          python - <<'PY'
+import json, os, sys
+p_env = os.environ.get("GOOGLE_SA_JSON")
+p_file = os.environ.get("SA_PATH","sa.json")
+
+# ENV로 전달된 JSON 검증
+if not p_env:
+    print("⚠️ GOOGLE_SA_JSON not set")
+else:
+    try:
+        json.loads(p_env)
+        print("✅ ENV JSON valid")
+    except Exception as e:
+        print("❌ ENV JSON invalid:", e)
+        sys.exit(1)
+
+# 파일로 복원된 JSON 검증
+try:
+    with open(p_file, "r", encoding="utf-8") as f:
+        json.load(f)
+    print("✅ File JSON valid:", p_file, "size:", os.path.getsize(p_file), "bytes")
+except Exception as e:
+    print("❌ File JSON invalid:", e)
+    sys.exit(1)
 PY
 
-
-      ㅍ
+      - name: Predict & write
+        env:
+          PYTHONUNBUFFERED: "1"
+          # 필요시 대상 월을 시크릿/변수로 넘기고, 스크립트에서 os.getenv로 읽도록 구현 가능
+          # TARGET_YEAR: "2024"
+          # TARGET_MONTH: "10"
+        run: |
+          # predict_expected_counts.py 가 리포 루트에 있다고 가정
+          python predict_expected_counts.py
