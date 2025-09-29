@@ -26,16 +26,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install gspread google-auth pandas numpy holidays
 
-      # ✅ Base64 시크릿을 파일로 복원 + 유효성 검사
-      - name: Write service account key (from secrets, base64)
-        run: |
-          echo "${{ secrets.GDRIVE_SA_JSON_B64 }}" | base64 -d > "${SA_PATH}"
-          python - <<'PY'
+     - name: Write service account key (plain secret → file)
+  shell: bash
+  run: |
+    # 멀티라인 시크릿을 내용 그대로 파일로 저장 (변수 치환/확장 방지용 'EOF')
+    cat > "${SA_PATH}" << 'EOF'
+${{ secrets.GDRIVE_SA_JSON }}
+EOF
+
+    # ✅ JSON 유효성 검사 (내용은 출력하지 않음)
+    python - <<'PY'
 import json, os
 p = os.environ.get("SA_PATH","sa.json")
-json.load(open(p, "r"))  # 유효성 검사
-print("✅ Service account JSON valid:", p)
+json.load(open(p,"r"))
+print("✅ Service account JSON valid:", p, "size:", os.path.getsize(p), "bytes")
 PY
+
 
       - name: Predict & write
         env:
