@@ -62,22 +62,24 @@ def posting_day_index(target_date: dt.date, month_year: tuple[int,int]) -> int:
 
 # ====== 구글시트 연결 ======
 def open_sheet(sheet_id: str):
+    import os, json, gspread
+    from google.oauth2.service_account import Credentials
+
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 
-    # ① 시크릿을 ENV로 직접 받기 (권장)
+    # ✅ 1순위: 환경변수에 담긴 시크릿(JSON 문자열)로 직접 인증
     json_str = os.getenv("GOOGLE_SA_JSON")
     if json_str:
-        from google.oauth2.service_account import Credentials
-        import json
-        info = json.loads(json_str)  # 여기서 에러 나면 시크릿 내용이 잘못 붙여진 것
+        info = json.loads(json_str)  # 여기서 실패하면 시크릿 값이 잘못 붙여진 것
         creds = Credentials.from_service_account_info(info, scopes=scopes)
     else:
-        # ② (fallback) 여전히 파일에서 읽고 싶다면 SA_PATH 사용
-        from google.oauth2.service_account import Credentials
-        creds = Credentials.from_service_account_file(SA_PATH, scopes=scopes)
+        # ↘️ 2순위: 여전히 파일을 쓰고 싶다면 SA_PATH 파일에서 로드 (fallback)
+        sa_path = os.getenv("SA_PATH", "sa.json")
+        creds = Credentials.from_service_account_file(sa_path, scopes=scopes)
 
     gc = gspread.authorize(creds)
     return gc.open_by_key(sheet_id)
+
 
 
 
