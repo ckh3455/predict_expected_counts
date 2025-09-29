@@ -43,9 +43,4 @@ print("✅ Service account JSON valid:", p, "size:", os.path.getsize(p), "bytes"
 PY
 
 
-      - name: Predict & write
-        env:
-          PYTHONUNBUFFERED: "1"
-        run: |
-          # predict_expected_counts.py 가 리포 루트에 있다고 가정
-          python predict_expected_counts.py
+      ㅍ
