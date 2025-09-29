@@ -63,9 +63,22 @@ def posting_day_index(target_date: dt.date, month_year: tuple[int,int]) -> int:
 # ====== 구글시트 연결 ======
 def open_sheet(sheet_id: str):
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_file(SA_PATH, scopes=scopes)
+
+    # ❶ 먼저 환경변수(시크릿)에서 바로 읽기
+    json_str = os.getenv("GOOGLE_SA_JSON")
+    if json_str:
+        from google.oauth2.service_account import Credentials
+        import json
+        info = json.loads(json_str)  # ← 여기서 JSONDecodeError 나면 시크릿에 문제
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+    else:
+        # ❷ fallback: 파일 경로 사용 (기존 방식)
+        from google.oauth2.service_account import Credentials
+        creds = Credentials.from_service_account_file(SA_PATH, scopes=scopes)
+
     gc = gspread.authorize(creds)
     return gc.open_by_key(sheet_id)
+
 
 # ====== 탭 파싱 ======
 TAB_RE = re.compile(r"^(?P<region>전국|서울)\s+(?P<yy>\d{2})년\s+(?P<m>\d{1,2})월$")
