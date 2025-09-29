@@ -2,13 +2,15 @@ name: predict-daily
 
 on:
   schedule:
-    - cron: "0 23 * * *"     # 08:00 KST
+    - cron: "0 23 * * *"      # 매일 08:00 KST (UTC 23:00)
+    # - cron: "30 23 * * *"   # (선택) 매일 08:30 KST 백업 실행
   workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
     env:
+      TZ: Asia/Seoul
       SHEET_ID: ${{ secrets.SHEET_ID }}
       SA_PATH:  ${{ github.workspace }}/sa.json
     steps:
@@ -24,13 +26,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install gspread google-auth pandas numpy holidays
 
-      - name: Write SA key
+      # ✅ Base64 시크릿을 파일로 복원 + 유효성 검사
+      - name: Write service account key (from secrets, base64)
         run: |
-          printf '%s' "${{ secrets.GDRIVE_SA_JSON }}" > "${SA_PATH}"
+          echo "${{ secrets.GDRIVE_SA_JSON_B64 }}" | base64 -d > "${SA_PATH}"
+          python - <<'PY'
+import json, os
+p = os.environ.get("SA_PATH","sa.json")
+json.load(open(p, "r"))  # 유효성 검사
+print("✅ Service account JSON valid:", p)
+PY
 
       - name: Predict & write
         env:
-          # 필요 월이 바뀌면 아래 값만 바꿔도 됩니다.
           PYTHONUNBUFFERED: "1"
         run: |
+          # predict_expected_counts.py 가 리포 루트에 있다고 가정
           python predict_expected_counts.py
